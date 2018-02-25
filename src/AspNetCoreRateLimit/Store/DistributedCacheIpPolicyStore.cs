@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Caching.Distributed;
+﻿using System.Threading.Tasks;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 
@@ -8,8 +9,8 @@ namespace AspNetCoreRateLimit
     {
         private readonly IDistributedCache _memoryCache;
 
-        public DistributedCacheIpPolicyStore(IDistributedCache memoryCache, 
-            IOptions<IpRateLimitOptions> options = null, 
+        public DistributedCacheIpPolicyStore(IDistributedCache memoryCache,
+            IOptions<IpRateLimitOptions> options = null,
             IOptions<IpRateLimitPolicies> policies = null)
         {
             _memoryCache = memoryCache;
@@ -17,14 +18,14 @@ namespace AspNetCoreRateLimit
             //save ip rules defined in appsettings in distributed cache on startup
             if (options != null && options.Value != null && policies != null && policies.Value != null && policies.Value.IpRules != null)
             {
-                Set($"{options.Value.IpPolicyPrefix}", policies.Value);
+                SetAsync($"{options.Value.IpPolicyPrefix}", policies.Value);
 
             }
         }
 
-        public void Set(string id, IpRateLimitPolicies policy)
+        public Task SetAsync(string id, IpRateLimitPolicies policy)
         {
-            _memoryCache.SetString(id, JsonConvert.SerializeObject(policy));
+            return _memoryCache.SetStringAsync(id, JsonConvert.SerializeObject(policy));
         }
 
         public bool Exists(string id)
@@ -33,9 +34,9 @@ namespace AspNetCoreRateLimit
             return !string.IsNullOrEmpty(stored);
         }
 
-        public IpRateLimitPolicies Get(string id)
+        public async Task<IpRateLimitPolicies> GetAsync(string id)
         {
-            var stored = _memoryCache.GetString(id);
+            var stored = await _memoryCache.GetStringAsync(id);
             if (!string.IsNullOrEmpty(stored))
             {
                 return JsonConvert.DeserializeObject<IpRateLimitPolicies>(stored);

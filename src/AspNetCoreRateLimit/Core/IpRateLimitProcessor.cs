@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using AspNetCoreRateLimit.Core;
 
 namespace AspNetCoreRateLimit
@@ -8,12 +9,9 @@ namespace AspNetCoreRateLimit
     public class IpRateLimitProcessor
     {
         private readonly IpRateLimitOptions _options;
-        private readonly IRateLimitCounterStore _counterStore;
         private readonly IIpPolicyStore _policyStore;
         private readonly IIpAddressParser _ipParser;
         private readonly RateLimitCore _core;
-
-        private static readonly object _processLocker = new object();
 
         public IpRateLimitProcessor(IpRateLimitOptions options,
            IRateLimitCounterStore counterStore,
@@ -21,19 +19,18 @@ namespace AspNetCoreRateLimit
            IIpAddressParser ipParser)
         {
             _options = options;
-            _counterStore = counterStore;
             _policyStore = policyStore;
             _ipParser = ipParser;
 
-            _core = new RateLimitCore(true, options, _counterStore);
+            _core = new RateLimitCore(true, options, counterStore);
         }
 
-        public List<RateLimitRule> GetMatchingRules(ClientRequestIdentity identity)
+        public async Task<List<RateLimitRule>> GetMatchingRulesAsync(ClientRequestIdentity identity)
         {
             var limits = new List<RateLimitRule>();
-            var policies = _policyStore.Get($"{_options.IpPolicyPrefix}");
+            var policies = await _policyStore.GetAsync($"{_options.IpPolicyPrefix}");
 
-            if (policies != null && policies.IpRules != null && policies.IpRules.Any())
+            if (policies?.IpRules != null && policies.IpRules.Any())
             {
                 // search for rules with IP intervals containing client IP
                 var matchPolicies = policies.IpRules.Where(r => _ipParser.ContainsIp(r.Ip, identity.ClientIp)).AsEnumerable();
@@ -91,7 +88,7 @@ namespace AspNetCoreRateLimit
                 foreach (var generalLimit in generalLimits)
                 {
                     // add general rule if no specific rule is declared for the specified period
-                    if(!limits.Exists(l => l.Period == generalLimit.Period))
+                    if (!limits.Exists(l => l.Period == generalLimit.Period))
                     {
                         limits.Add(generalLimit);
                     }
@@ -105,9 +102,9 @@ namespace AspNetCoreRateLimit
             }
 
             limits = limits.OrderBy(l => l.PeriodTimespan).ToList();
-            if(_options.StackBlockedRequests)
+            if (_options.StackBlockedRequests)
             {
-                limits.Reverse();   
+                limits.Reverse();
             }
 
             return limits;
@@ -135,14 +132,14 @@ namespace AspNetCoreRateLimit
             return false;
         }
 
-        public RateLimitCounter ProcessRequest(ClientRequestIdentity requestIdentity, RateLimitRule rule)
+        public Task<RateLimitCounter> ProcessRequestAsync(ClientRequestIdentity requestIdentity, RateLimitRule rule)
         {
-            return _core.ProcessRequest(requestIdentity, rule);
+            return _core.ProcessRequestAsync(requestIdentity, rule);
         }
 
-        public RateLimitHeaders GetRateLimitHeaders(ClientRequestIdentity requestIdentity, RateLimitRule rule)
+        public Task<RateLimitHeaders> GetRateLimitHeadersAsync(ClientRequestIdentity requestIdentity, RateLimitRule rule)
         {
-            return _core.GetRateLimitHeaders(requestIdentity, rule);
+            return _core.GetRateLimitHeadersAsync(requestIdentity, rule);
         }
 
         public string RetryAfterFrom(DateTime timestamp, RateLimitRule rule)

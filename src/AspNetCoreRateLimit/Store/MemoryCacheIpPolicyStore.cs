@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
-using System;
-using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace AspNetCoreRateLimit
 {
@@ -18,31 +17,29 @@ namespace AspNetCoreRateLimit
             //save ip rules defined in appsettings in cache on startup
             if (options != null && options.Value != null && policies != null && policies.Value != null && policies.Value.IpRules != null)
             {
-                Set($"{options.Value.IpPolicyPrefix}", policies.Value);
-
+                SetAsync($"{options.Value.IpPolicyPrefix}", policies.Value);
             }
         }
 
-        public void Set(string id, IpRateLimitPolicies policy)
+        public Task SetAsync(string id, IpRateLimitPolicies policy)
         {
             _memoryCache.Set(id, policy);
+            return Task.CompletedTask;
         }
 
         public bool Exists(string id)
         {
-            IpRateLimitPolicies stored;
-            return _memoryCache.TryGetValue(id, out stored);
+            return _memoryCache.TryGetValue(id, out IpRateLimitPolicies stored);
         }
 
-        public IpRateLimitPolicies Get(string id)
+        public Task<IpRateLimitPolicies> GetAsync(string id)
         {
-            IpRateLimitPolicies stored;
-            if (_memoryCache.TryGetValue(id, out stored))
+            if (_memoryCache.TryGetValue(id, out IpRateLimitPolicies stored))
             {
-                return stored;
+                return Task.FromResult(stored);
             }
 
-            return null;
+            return Task.FromResult<IpRateLimitPolicies>(null);
         }
 
         public void Remove(string id)

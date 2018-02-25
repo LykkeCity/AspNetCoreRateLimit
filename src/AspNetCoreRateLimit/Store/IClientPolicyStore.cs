@@ -1,10 +1,12 @@
-﻿namespace AspNetCoreRateLimit
+﻿using System.Threading.Tasks;
+
+namespace AspNetCoreRateLimit
 {
     public interface IClientPolicyStore
     {
         bool Exists(string id);
-        ClientRateLimitPolicy Get(string id);
+        Task<ClientRateLimitPolicy> GetAsync(string id);
         void Remove(string id);
-        void Set(string id, ClientRateLimitPolicy policy);
+        Task SetAsync(string id, ClientRateLimitPolicy policy);
     }
 }

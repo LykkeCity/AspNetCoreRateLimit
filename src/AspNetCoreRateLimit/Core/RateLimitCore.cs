@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Globalization;
+using System.Threading.Tasks;
 
 namespace AspNetCoreRateLimit
 {
@@ -20,13 +21,13 @@ namespace AspNetCoreRateLimit
             _counterStore = counterStore;
         }
 
-        public string ComputeCounterKey(ClientRequestIdentity requestIdentity, RateLimitRule rule)
+        private string ComputeCounterKey(ClientRequestIdentity requestIdentity, RateLimitRule rule)
         {
-            var key = _ipRateLimiting ? 
+            var key = _ipRateLimiting ?
                 $"{_options.RateLimitCounterPrefix}_{requestIdentity.ClientIp}_{rule.Period}" :
                 $"{_options.RateLimitCounterPrefix}_{requestIdentity.ClientId}_{rule.Period}";
 
-            if(_options.EnableEndpointRateLimiting)
+            if (_options.EnableEndpointRateLimiting)
             {
                 key += $"_{requestIdentity.HttpVerb}_{requestIdentity.Path}";
 
@@ -46,49 +47,18 @@ namespace AspNetCoreRateLimit
             return BitConverter.ToString(hashBytes).Replace("-", string.Empty);
         }
 
-        public RateLimitCounter ProcessRequest(ClientRequestIdentity requestIdentity, RateLimitRule rule)
+        public async Task<RateLimitCounter> ProcessRequestAsync(ClientRequestIdentity requestIdentity, RateLimitRule rule)
         {
-            var counter = new RateLimitCounter
-            {
-                Timestamp = DateTime.UtcNow,
-                TotalRequests = 1
-            };
-
             var counterId = ComputeCounterKey(requestIdentity, rule);
 
-            // serial reads and writes
-            lock (_processLocker)
-            {
-                var entry = _counterStore.Get(counterId);
-                if (entry.HasValue)
-                {
-                    // entry has not expired
-                    if (entry.Value.Timestamp + rule.PeriodTimespan.Value >= DateTime.UtcNow)
-                    {
-                        // increment request count
-                        var totalRequests = entry.Value.TotalRequests + 1;
-
-                        // deep copy
-                        counter = new RateLimitCounter
-                        {
-                            Timestamp = entry.Value.Timestamp,
-                            TotalRequests = totalRequests
-                        };
-                    }
-                }
-
-                // stores: id (string) - timestamp (datetime) - total_requests (long)
-                _counterStore.Set(counterId, counter, rule.PeriodTimespan.Value);
-            }
-
-            return counter;
+            return await _counterStore.IncrementAsync(counterId, rule.PeriodTimespan.Value);
         }
 
-        public RateLimitHeaders GetRateLimitHeaders(ClientRequestIdentity requestIdentity, RateLimitRule rule)
+        public async Task<RateLimitHeaders> GetRateLimitHeadersAsync(ClientRequestIdentity requestIdentity, RateLimitRule rule)
         {
             var headers = new RateLimitHeaders();
             var counterId = ComputeCounterKey(requestIdentity, rule);
-            var entry = _counterStore.Get(counterId);
+            var entry = await _counterStore.GetAsync(counterId);
             if (entry.HasValue)
             {
                 headers.Reset = (entry.Value.Timestamp + ConvertToTimeSpan(rule.Period)).ToUniversalTime().ToString("o", DateTimeFormatInfo.InvariantInfo);
@@ -99,7 +69,7 @@ namespace AspNetCoreRateLimit
             {
                 headers.Reset = (DateTime.UtcNow + ConvertToTimeSpan(rule.Period)).ToUniversalTime().ToString("o", DateTimeFormatInfo.InvariantInfo);
                 headers.Limit = rule.Period;
-                headers.Remaining = rule.Limit .ToString();
+                headers.Remaining = rule.Limit.ToString();
             }
 
             return headers;

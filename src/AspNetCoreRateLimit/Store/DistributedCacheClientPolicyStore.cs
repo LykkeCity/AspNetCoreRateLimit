@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Caching.Distributed;
+﻿using System.Threading.Tasks;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 
@@ -19,14 +20,14 @@ namespace AspNetCoreRateLimit
             {
                 foreach (var rule in policies.Value.ClientRules)
                 {
-                    Set($"{options.Value.ClientPolicyPrefix}_{rule.ClientId}", new ClientRateLimitPolicy { ClientId = rule.ClientId, Rules = rule.Rules });
+                    SetAsync($"{options.Value.ClientPolicyPrefix}_{rule.ClientId}", new ClientRateLimitPolicy { ClientId = rule.ClientId, Rules = rule.Rules });
                 }
             }
         }
 
-        public void Set(string id, ClientRateLimitPolicy policy)
+        public Task SetAsync(string id, ClientRateLimitPolicy policy)
         {
-            _memoryCache.SetString(id, JsonConvert.SerializeObject(policy));
+            return _memoryCache.SetStringAsync(id, JsonConvert.SerializeObject(policy));
         }
 
         public bool Exists(string id)
@@ -35,9 +36,9 @@ namespace AspNetCoreRateLimit
             return !string.IsNullOrEmpty(stored);
         }
 
-        public ClientRateLimitPolicy Get(string id)
+        public async Task<ClientRateLimitPolicy> GetAsync(string id)
         {
-            var stored = _memoryCache.GetString(id);
+            var stored = await _memoryCache.GetStringAsync(id);
             if (!string.IsNullOrEmpty(stored))
             {
                 return JsonConvert.DeserializeObject<ClientRateLimitPolicy>(stored);

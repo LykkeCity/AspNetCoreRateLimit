@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Caching.Distributed;
 using Newtonsoft.Json;
 using System;
+using System.Threading.Tasks;
 
 namespace AspNetCoreRateLimit
 {
@@ -13,30 +14,41 @@ namespace AspNetCoreRateLimit
             _memoryCache = memoryCache;
         }
 
-        public void Set(string id, RateLimitCounter counter, TimeSpan expirationTime)
+        private Task SetAsync(string id, RateLimitCounter counter, TimeSpan expirationTime)
         {
-            _memoryCache.SetString(id, JsonConvert.SerializeObject(counter), new DistributedCacheEntryOptions().SetAbsoluteExpiration(expirationTime));
+            return _memoryCache.SetStringAsync(id, JsonConvert.SerializeObject(counter), new DistributedCacheEntryOptions().SetAbsoluteExpiration(expirationTime));
         }
 
-        public bool Exists(string id)
+        public async Task<RateLimitCounter> IncrementAsync(string id, TimeSpan expirationTime)
         {
-            var stored = _memoryCache.GetString(id);
-            return !string.IsNullOrEmpty(stored);
+            // todo: atomic
+
+            var entry = await GetAsync(id);
+            var counter = entry.HasValue
+                ? new RateLimitCounter
+                {
+                    Timestamp = entry.Value.Timestamp,
+                    TotalRequests = entry.Value.TotalRequests + 1
+                }
+                : new RateLimitCounter
+                {
+                    Timestamp = DateTime.UtcNow,
+                    TotalRequests = 1
+                };
+
+            await SetAsync(id, counter, expirationTime);
+
+            return counter;
         }
 
-        public RateLimitCounter? Get(string id)
+        public async Task<RateLimitCounter?> GetAsync(string id)
         {
-            var stored = _memoryCache.GetString(id);
-            if(!string.IsNullOrEmpty(stored))
+            var stored = await _memoryCache.GetStringAsync(id);
+            if (!string.IsNullOrEmpty(stored))
             {
                 return JsonConvert.DeserializeObject<RateLimitCounter>(stored);
             }
             return null;
-        }
-
-        public void Remove(string id)
-        {
-            _memoryCache.Remove(id);
         }
     }
 }

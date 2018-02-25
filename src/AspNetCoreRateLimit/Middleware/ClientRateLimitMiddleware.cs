@@ -47,20 +47,14 @@ namespace AspNetCoreRateLimit
                 return;
             }
 
-            var rules = _processor.GetMatchingRules(identity);
+            var rules = await _processor.GetMatchingRulesAsync(identity);
 
             foreach (var rule in rules)
             {
-                if(rule.Limit > 0)
+                if (rule.Limit > 0)
                 {
                     // increment counter
-                    var counter = _processor.ProcessRequest(identity, rule);
-
-                    // check if key expired
-                    if (counter.Timestamp + rule.PeriodTimespan.Value < DateTime.UtcNow)
-                    {
-                        continue;
-                    }
+                    var counter = await _processor.ProcessRequestAsync(identity, rule);
 
                     // check if limit is reached
                     if (counter.TotalRequests > rule.Limit)
@@ -70,7 +64,7 @@ namespace AspNetCoreRateLimit
 
                         // log blocked request
                         LogBlockedRequest(httpContext, identity, counter, rule);
-                  
+
                         // break execution
                         await ReturnQuotaExceededResponse(httpContext, rule, retryAfter);
                         return;
@@ -80,7 +74,7 @@ namespace AspNetCoreRateLimit
                 else
                 {
                     // process request count
-                    var counter = _processor.ProcessRequest(identity, rule);
+                    var counter = await _processor.ProcessRequestAsync(identity, rule);
 
                     // log blocked request
                     LogBlockedRequest(httpContext, identity, counter, rule);
@@ -92,10 +86,10 @@ namespace AspNetCoreRateLimit
             }
 
             //set X-Rate-Limit headers for the longest period
-            if(rules.Any() && !_options.DisableRateLimitHeaders)
+            if (rules.Any() && !_options.DisableRateLimitHeaders)
             {
                 var rule = rules.OrderByDescending(x => x.PeriodTimespan.Value).First();
-                var headers = _processor.GetRateLimitHeaders(identity, rule);
+                var headers = await _processor.GetRateLimitHeadersAsync(identity, rule);
                 headers.Context = httpContext;
 
                 httpContext.Response.OnStarting(SetRateLimitHeaders, state: headers);
@@ -107,7 +101,7 @@ namespace AspNetCoreRateLimit
         public virtual ClientRequestIdentity SetIdentity(HttpContext httpContext)
         {
             var clientId = "anon";
-            if (httpContext.Request.Headers.Keys.Contains(_options.ClientIdHeader,StringComparer.CurrentCultureIgnoreCase))
+            if (httpContext.Request.Headers.Keys.Contains(_options.ClientIdHeader, StringComparer.CurrentCultureIgnoreCase))
             {
                 clientId = httpContext.Request.Headers[_options.ClientIdHeader].First();
             }

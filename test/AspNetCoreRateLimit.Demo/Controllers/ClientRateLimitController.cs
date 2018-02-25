@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 namespace AspNetCoreRateLimit.Demo.Controllers
@@ -21,23 +17,23 @@ namespace AspNetCoreRateLimit.Demo.Controllers
         }
 
         [HttpGet]
-        public ClientRateLimitPolicy Get()
+        public async Task<ClientRateLimitPolicy> Get()
         {
-            return _clientPolicyStore.Get($"{_options.ClientPolicyPrefix}_cl-key-1");
+            return await _clientPolicyStore.GetAsync($"{_options.ClientPolicyPrefix}_cl-key-1");
         }
 
         [HttpPost]
-        public void Post()
+        public async Task Post()
         {
             var id = $"{_options.ClientPolicyPrefix}_cl-key-1";
-            var anonPolicy = _clientPolicyStore.Get(id);
+            var anonPolicy = await _clientPolicyStore.GetAsync(id);
             anonPolicy.Rules.Add(new RateLimitRule
             {
                 Endpoint = "*/api/testpolicyupdate",
                 Period = "1h",
                 Limit = 100
             });
-            _clientPolicyStore.Set(id, anonPolicy);
+            await _clientPolicyStore.SetAsync(id, anonPolicy);
         }
     }
 }

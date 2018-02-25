@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
-using System;
-using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace AspNetCoreRateLimit
 {
@@ -20,31 +19,30 @@ namespace AspNetCoreRateLimit
             {
                 foreach (var rule in policies.Value.ClientRules)
                 {
-                    Set($"{options.Value.ClientPolicyPrefix}_{rule.ClientId}", new ClientRateLimitPolicy { ClientId = rule.ClientId, Rules = rule.Rules });
+                    SetAsync($"{options.Value.ClientPolicyPrefix}_{rule.ClientId}", new ClientRateLimitPolicy { ClientId = rule.ClientId, Rules = rule.Rules });
                 }
             }
         }
 
-        public void Set(string id, ClientRateLimitPolicy policy)
+        public Task SetAsync(string id, ClientRateLimitPolicy policy)
         {
             _memoryCache.Set(id, policy);
+            return Task.CompletedTask;
         }
 
         public bool Exists(string id)
         {
-            ClientRateLimitPolicy stored;
-            return _memoryCache.TryGetValue(id, out stored);
+            return _memoryCache.TryGetValue(id, out ClientRateLimitPolicy stored);
         }
 
-        public ClientRateLimitPolicy Get(string id)
+        public Task<ClientRateLimitPolicy> GetAsync(string id)
         {
-            ClientRateLimitPolicy stored;
-            if (_memoryCache.TryGetValue(id, out stored))
+            if (_memoryCache.TryGetValue(id, out ClientRateLimitPolicy stored))
             {
-                return stored;
+                return Task.FromResult(stored);
             }
 
-            return null;
+            return Task.FromResult<ClientRateLimitPolicy>(null);
         }
 
         public void Remove(string id)

@@ -8,7 +8,7 @@ namespace AspNetCoreRateLimit
     public struct RateLimitCounter
     {
         public DateTime Timestamp { get; set; }
-
+        
         public long TotalRequests { get; set; }
     }
 }

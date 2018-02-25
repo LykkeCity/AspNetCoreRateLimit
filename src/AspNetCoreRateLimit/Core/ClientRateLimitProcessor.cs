@@ -1,33 +1,30 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace AspNetCoreRateLimit
 {
     public class ClientRateLimitProcessor
     {
         private readonly ClientRateLimitOptions _options;
-        private readonly IRateLimitCounterStore _counterStore;
         private readonly IClientPolicyStore _policyStore;
         private readonly RateLimitCore _core;
-
-        private static readonly object _processLocker = new object();
 
         public ClientRateLimitProcessor(ClientRateLimitOptions options,
            IRateLimitCounterStore counterStore,
            IClientPolicyStore policyStore)
         {
             _options = options;
-            _counterStore = counterStore;
             _policyStore = policyStore;
 
-            _core = new RateLimitCore(false, options, _counterStore);
+            _core = new RateLimitCore(false, options, counterStore);
         }
 
-        public List<RateLimitRule> GetMatchingRules(ClientRequestIdentity identity)
+        public async Task<List<RateLimitRule>> GetMatchingRulesAsync(ClientRequestIdentity identity)
         {
             var limits = new List<RateLimitRule>();
-            var policy = _policyStore.Get($"{_options.ClientPolicyPrefix}_{identity.ClientId}");
+            var policy = await _policyStore.GetAsync($"{_options.ClientPolicyPrefix}_{identity.ClientId}");
 
             if (policy != null)
             {
@@ -79,7 +76,7 @@ namespace AspNetCoreRateLimit
                 foreach (var generalLimit in generalLimits)
                 {
                     // add general rule if no specific rule is declared for the specified period
-                    if(!limits.Exists(l => l.Period == generalLimit.Period))
+                    if (!limits.Exists(l => l.Period == generalLimit.Period))
                     {
                         limits.Add(generalLimit);
                     }
@@ -93,9 +90,9 @@ namespace AspNetCoreRateLimit
             }
 
             limits = limits.OrderBy(l => l.PeriodTimespan).ToList();
-            if(_options.StackBlockedRequests)
+            if (_options.StackBlockedRequests)
             {
-                limits.Reverse();   
+                limits.Reverse();
             }
 
             return limits;
@@ -118,14 +115,14 @@ namespace AspNetCoreRateLimit
             return false;
         }
 
-        public RateLimitCounter ProcessRequest(ClientRequestIdentity requestIdentity, RateLimitRule rule)
+        public Task<RateLimitCounter> ProcessRequestAsync(ClientRequestIdentity requestIdentity, RateLimitRule rule)
         {
-            return _core.ProcessRequest(requestIdentity, rule);
+            return _core.ProcessRequestAsync(requestIdentity, rule);
         }
 
-        public RateLimitHeaders GetRateLimitHeaders(ClientRequestIdentity requestIdentity, RateLimitRule rule)
+        public Task<RateLimitHeaders> GetRateLimitHeadersAsync(ClientRequestIdentity requestIdentity, RateLimitRule rule)
         {
-            return _core.GetRateLimitHeaders(requestIdentity, rule);
+            return _core.GetRateLimitHeadersAsync(requestIdentity, rule);
         }
 
         public string RetryAfterFrom(DateTime timestamp, RateLimitRule rule)
