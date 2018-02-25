@@ -24,19 +24,23 @@ namespace AspNetCoreRateLimit
             // todo: atomic
 
             var entry = await GetAsync(id);
+
+            var ttl = entry.HasValue ? entry.Value.Timestamp + expirationTime - DateTime.UtcNow : expirationTime;
             var counter = entry.HasValue
                 ? new RateLimitCounter
                 {
                     Timestamp = entry.Value.Timestamp,
-                    TotalRequests = entry.Value.TotalRequests + 1
+                    TotalRequests = entry.Value.TotalRequests + 1,
+                    Ttl = ttl
                 }
                 : new RateLimitCounter
                 {
                     Timestamp = DateTime.UtcNow,
-                    TotalRequests = 1
+                    TotalRequests = 1,
+                    Ttl = ttl
                 };
 
-            await SetAsync(id, counter, expirationTime);
+            await SetAsync(id, counter, ttl);
 
             return counter;
         }

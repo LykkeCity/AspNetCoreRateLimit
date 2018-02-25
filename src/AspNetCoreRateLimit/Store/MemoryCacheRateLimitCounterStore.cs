@@ -26,19 +26,22 @@ namespace AspNetCoreRateLimit
 
             lock (_locker)
             {
+                var ttl = entry.HasValue ? entry.Value.Timestamp + expirationTime - DateTime.UtcNow : expirationTime;
                 counter = entry.HasValue
                         ? new RateLimitCounter
                         {
                             Timestamp = entry.Value.Timestamp,
-                            TotalRequests = entry.Value.TotalRequests + 1
+                            TotalRequests = entry.Value.TotalRequests + 1,
+                            Ttl = ttl
                         }
                         : new RateLimitCounter
                         {
                             Timestamp = DateTime.UtcNow,
-                            TotalRequests = 1
+                            TotalRequests = 1,
+                            Ttl = ttl
                         };
 
-                Set(id, counter, expirationTime); 
+                Set(id, counter, ttl); 
             }
 
             return Task.FromResult(counter);

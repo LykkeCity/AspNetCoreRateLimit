@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -123,11 +122,6 @@ namespace AspNetCoreRateLimit
         public Task<RateLimitHeaders> GetRateLimitHeadersAsync(ClientRequestIdentity requestIdentity, RateLimitRule rule)
         {
             return _core.GetRateLimitHeadersAsync(requestIdentity, rule);
-        }
-
-        public string RetryAfterFrom(DateTime timestamp, RateLimitRule rule)
-        {
-            return _core.RetryAfterFrom(timestamp, rule);
         }
     }
 }

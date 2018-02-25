@@ -10,8 +10,6 @@ namespace AspNetCoreRateLimit
         private readonly IRateLimitCounterStore _counterStore;
         private readonly bool _ipRateLimiting;
 
-        private static readonly object _processLocker = new object();
-
         public RateLimitCore(bool ipRateLimiting,
             RateLimitCoreOptions options,
            IRateLimitCounterStore counterStore)
@@ -61,7 +59,7 @@ namespace AspNetCoreRateLimit
             var entry = await _counterStore.GetAsync(counterId);
             if (entry.HasValue)
             {
-                headers.Reset = (entry.Value.Timestamp + ConvertToTimeSpan(rule.Period)).ToUniversalTime().ToString("o", DateTimeFormatInfo.InvariantInfo);
+                headers.Reset = (DateTime.UtcNow + entry.Value.Ttl).ToUniversalTime().ToString("o", DateTimeFormatInfo.InvariantInfo);
                 headers.Limit = rule.Period;
                 headers.Remaining = (rule.Limit - entry.Value.TotalRequests).ToString();
             }
@@ -73,14 +71,6 @@ namespace AspNetCoreRateLimit
             }
 
             return headers;
-        }
-
-        public string RetryAfterFrom(DateTime timestamp, RateLimitRule rule)
-        {
-            var secondsPast = Convert.ToInt32((DateTime.UtcNow - timestamp).TotalSeconds);
-            var retryAfter = Convert.ToInt32(rule.PeriodTimespan.Value.TotalSeconds);
-            retryAfter = retryAfter > 1 ? retryAfter - secondsPast : 1;
-            return retryAfter.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
         public TimeSpan ConvertToTimeSpan(string timeSpan)

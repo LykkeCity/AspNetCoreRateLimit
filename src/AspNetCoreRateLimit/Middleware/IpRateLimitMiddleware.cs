@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -63,14 +64,11 @@ namespace AspNetCoreRateLimit
                     // check if limit is reached
                     if (counter.TotalRequests > rule.Limit)
                     {
-                        //compute retry after value
-                        var retryAfter = _processor.RetryAfterFrom(counter.Timestamp, rule);
-
                         // log blocked request
                         LogBlockedRequest(httpContext, identity, counter, rule);
 
                         // break execution
-                        await ReturnQuotaExceededResponse(httpContext, rule, retryAfter);
+                        await ReturnQuotaExceededResponse(httpContext, rule, counter.Ttl);
                         return;
                     }
                 }
@@ -83,8 +81,8 @@ namespace AspNetCoreRateLimit
                     // log blocked request
                     LogBlockedRequest(httpContext, identity, counter, rule);
 
-                    // break execution (Int32 max used to represent infinity)
-                    await ReturnQuotaExceededResponse(httpContext, rule, Int32.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    // break execution (TimeSpan.MaxValue used to represent infinity)
+                    await ReturnQuotaExceededResponse(httpContext, rule, TimeSpan.MaxValue);
                     return;
                 }
             }
@@ -135,13 +133,13 @@ namespace AspNetCoreRateLimit
             };
         }
 
-        public virtual Task ReturnQuotaExceededResponse(HttpContext httpContext, RateLimitRule rule, string retryAfter)
+        public virtual Task ReturnQuotaExceededResponse(HttpContext httpContext, RateLimitRule rule, TimeSpan retryAfter)
         {
             var message = string.IsNullOrEmpty(_options.QuotaExceededMessage) ? $"API calls quota exceeded! maximum admitted {rule.Limit} per {rule.Period}." : _options.QuotaExceededMessage;
 
             if (!_options.DisableRateLimitHeaders)
             {
-                httpContext.Response.Headers["Retry-After"] = retryAfter;
+                httpContext.Response.Headers["Retry-After"] = ((long)retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
             }
 
             httpContext.Response.StatusCode = _options.HttpStatusCode;
