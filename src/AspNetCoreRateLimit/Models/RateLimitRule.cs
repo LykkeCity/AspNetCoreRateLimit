@@ -1,7 +1,9 @@
 ﻿using System;
+using MessagePack;
 
 namespace AspNetCoreRateLimit
 {
+    [MessagePackObject(keyAsPropertyName: true)]
     public class RateLimitRule
     {
         /// <summary>

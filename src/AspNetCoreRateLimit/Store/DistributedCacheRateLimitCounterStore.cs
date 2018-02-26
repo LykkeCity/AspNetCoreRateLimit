@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Caching.Distributed;
-using Newtonsoft.Json;
 using System;
 using System.Threading.Tasks;
 
@@ -16,7 +15,7 @@ namespace AspNetCoreRateLimit
 
         private Task SetAsync(string id, RateLimitCounter counter, TimeSpan expirationTime)
         {
-            return _memoryCache.SetStringAsync(id, JsonConvert.SerializeObject(counter), new DistributedCacheEntryOptions().SetAbsoluteExpiration(expirationTime));
+            return _memoryCache.SetAsync(id, MessagePack.MessagePackSerializer.Serialize(counter), new DistributedCacheEntryOptions().SetAbsoluteExpiration(expirationTime));
         }
 
         public async Task<RateLimitCounter> IncrementAsync(string id, TimeSpan expirationTime)
@@ -26,6 +25,11 @@ namespace AspNetCoreRateLimit
             var entry = await GetAsync(id);
 
             var ttl = entry.HasValue ? entry.Value.Timestamp + expirationTime - DateTime.UtcNow : expirationTime;
+            if (ttl < TimeSpan.Zero)
+            {
+                ttl = TimeSpan.FromMilliseconds(1);
+            }
+
             var counter = entry.HasValue
                 ? new RateLimitCounter
                 {
@@ -47,10 +51,10 @@ namespace AspNetCoreRateLimit
 
         public async Task<RateLimitCounter?> GetAsync(string id)
         {
-            var stored = await _memoryCache.GetStringAsync(id);
-            if (!string.IsNullOrEmpty(stored))
+            var stored = await _memoryCache.GetAsync(id);
+            if (stored != null)
             {
-                return JsonConvert.DeserializeObject<RateLimitCounter>(stored);
+                return MessagePack.MessagePackSerializer.Deserialize<RateLimitCounter>(stored);
             }
             return null;
         }

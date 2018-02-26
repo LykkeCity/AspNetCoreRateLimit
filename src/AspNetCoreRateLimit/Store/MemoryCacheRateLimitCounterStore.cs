@@ -21,30 +21,34 @@ namespace AspNetCoreRateLimit
 
         public Task<RateLimitCounter> IncrementAsync(string id, TimeSpan expirationTime)
         {
-            var entry = Get(id);
-            RateLimitCounter counter;
-
             lock (_locker)
             {
+                var entry = Get(id);
+
                 var ttl = entry.HasValue ? entry.Value.Timestamp + expirationTime - DateTime.UtcNow : expirationTime;
-                counter = entry.HasValue
-                        ? new RateLimitCounter
-                        {
-                            Timestamp = entry.Value.Timestamp,
-                            TotalRequests = entry.Value.TotalRequests + 1,
-                            Ttl = ttl
-                        }
-                        : new RateLimitCounter
-                        {
-                            Timestamp = DateTime.UtcNow,
-                            TotalRequests = 1,
-                            Ttl = ttl
-                        };
+                if (ttl < TimeSpan.Zero)
+                {
+                    ttl = TimeSpan.FromMilliseconds(1);
+                }
 
-                Set(id, counter, ttl); 
+                var counter = entry.HasValue
+                    ? new RateLimitCounter
+                    {
+                        Timestamp = entry.Value.Timestamp,
+                        TotalRequests = entry.Value.TotalRequests + 1,
+                        Ttl = ttl
+                    }
+                    : new RateLimitCounter
+                    {
+                        Timestamp = DateTime.UtcNow,
+                        TotalRequests = 1,
+                        Ttl = ttl
+                    };
+
+                Set(id, counter, ttl);
+
+                return Task.FromResult(counter);
             }
-
-            return Task.FromResult(counter);
         }
 
         public Task<RateLimitCounter?> GetAsync(string id)

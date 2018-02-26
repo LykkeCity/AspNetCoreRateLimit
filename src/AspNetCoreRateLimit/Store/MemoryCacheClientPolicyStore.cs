@@ -15,7 +15,7 @@ namespace AspNetCoreRateLimit
             _memoryCache = memoryCache;
 
             //save client rules defined in appsettings in cache on startup
-            if(options != null && options.Value != null && policies != null && policies.Value != null && policies.Value.ClientRules != null)
+            if(options?.Value != null && policies?.Value?.ClientRules != null)
             {
                 foreach (var rule in policies.Value.ClientRules)
                 {
