@@ -28,30 +28,37 @@ namespace Lykke.RateLimit.Demo
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddOptions();
-            services.AddMemoryCache();
-            //services.AddDistributedRedisCache(options =>
-            //{
-            //    options.Configuration = "localhost:6379";
-            //    options.InstanceName = "rate-limits:";
-            //});
+            var useInMemoryCache = false;
+            if (useInMemoryCache)
+            {
+                services.AddMemoryCache();
+                services.AddSingleton<IClientPolicyStore, MemoryCacheClientPolicyStore>();
+                services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
+                services.AddSingleton<IRateLimitCounterStore, MemoryCacheRateLimitCounterStore>();
+            }
+            else
+            {
+                services.AddDistributedRedisCache(options =>
+                {
+                    options.Configuration = "localhost:6379";
+                    options.InstanceName = "rate-limits:";
+                });
 
-            //var redis = ConnectionMultiplexer.Connect("localhost:6379");
-            //services.AddSingleton(redis);
-            //services.AddTransient(x => redis.GetDatabase());
+                var redis = ConnectionMultiplexer.Connect("localhost:6379");
+                services.AddSingleton(redis);
+
+                services.AddSingleton<IClientPolicyStore, DistributedCacheClientPolicyStore>();
+                services.AddSingleton<IIpPolicyStore, DistributedCacheIpPolicyStore>();
+                services.AddSingleton<IRateLimitCounterStore, RedisCacheRateLimitCounterStore>();
+            }
 
             //configure ip rate limiting middle-ware
             services.Configure<IpRateLimitOptions>(Configuration.GetSection("IpRateLimiting"));
             services.Configure<IpRateLimitPolicies>(Configuration.GetSection("IpRateLimitPolicies"));
-            services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
-            services.AddSingleton<IRateLimitCounterStore, MemoryCacheRateLimitCounterStore>();
-            //services.AddSingleton<IIpPolicyStore, DistributedCacheIpPolicyStore>();
-            //services.AddSingleton<IRateLimitCounterStore, RedisCacheRateLimitCounterStore>();
 
             //configure client rate limiting middleware
             services.Configure<ClientRateLimitOptions>(Configuration.GetSection("ClientRateLimiting"));
             services.Configure<ClientRateLimitPolicies>(Configuration.GetSection("ClientRateLimitPolicies"));
-            services.AddSingleton<IClientPolicyStore, MemoryCacheClientPolicyStore>();
-            //services.AddSingleton<IClientPolicyStore, DistributedCacheClientPolicyStore>();
 
             var opt = new ClientRateLimitOptions();
             ConfigurationBinder.Bind(Configuration.GetSection("ClientRateLimiting"), opt);
@@ -63,8 +70,8 @@ namespace Lykke.RateLimit.Demo
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
         {
-            loggerFactory.AddConsole(Configuration.GetSection("Logging"));
-            loggerFactory.AddDebug();
+            //loggerFactory.AddConsole(Configuration.GetSection("Logging"));
+            //loggerFactory.AddDebug();
 
             app.UseIpRateLimiting();
             app.UseClientRateLimiting();

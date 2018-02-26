@@ -10,9 +10,9 @@ namespace Lykke.RateLimit.Store
         private readonly IDatabase _redisDatabase;
         private readonly string _instanceName;
 
-        public RedisCacheRateLimitCounterStore(IDatabase redisDatabase, string instanceName = "rate-limits:")
+        public RedisCacheRateLimitCounterStore(ConnectionMultiplexer multiplexer, string instanceName = "rate-limits:")
         {
-            _redisDatabase = redisDatabase;
+            _redisDatabase = multiplexer.GetDatabase();
             _instanceName = instanceName;
         }
 
