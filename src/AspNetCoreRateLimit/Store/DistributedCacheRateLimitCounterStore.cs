@@ -20,7 +20,7 @@ namespace AspNetCoreRateLimit
 
         public async Task<RateLimitCounter> IncrementAsync(string id, TimeSpan expirationTime)
         {
-            // todo: atomic
+            // this method is not atomic and should not be used
 
             var entry = await GetAsync(id);
 
