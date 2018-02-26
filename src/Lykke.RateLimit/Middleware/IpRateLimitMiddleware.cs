@@ -7,7 +7,6 @@ using Lykke.RateLimit.Models;
 using Lykke.RateLimit.Net;
 using Lykke.RateLimit.Store;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Lykke.RateLimit.Middleware
@@ -15,7 +14,6 @@ namespace Lykke.RateLimit.Middleware
     public class IpRateLimitMiddleware
     {
         private readonly RequestDelegate _next;
-        private readonly ILogger<IpRateLimitMiddleware> _logger;
         private readonly IIpAddressParser _ipParser;
         private readonly IpRateLimitProcessor _processor;
         private readonly IpRateLimitOptions _options;
@@ -24,13 +22,11 @@ namespace Lykke.RateLimit.Middleware
             IOptions<IpRateLimitOptions> options,
             IRateLimitCounterStore counterStore,
             IIpPolicyStore policyStore,
-            ILogger<IpRateLimitMiddleware> logger,
             IIpAddressParser ipParser = null
             )
         {
             _next = next;
             _options = options.Value;
-            _logger = logger;
             _ipParser = ipParser != null ? ipParser : new ReversProxyIpParser(_options.RealIpHeader);
 
             _processor = new IpRateLimitProcessor(_options, counterStore, policyStore, _ipParser);
@@ -67,9 +63,6 @@ namespace Lykke.RateLimit.Middleware
                     // check if limit is reached
                     if (counter.TotalRequests > rule.Limit)
                     {
-                        // log blocked request
-                        LogBlockedRequest(httpContext, identity, counter, rule);
-
                         // break execution
                         await ReturnQuotaExceededResponse(httpContext, rule, counter.Ttl);
                         return;
@@ -80,10 +73,7 @@ namespace Lykke.RateLimit.Middleware
                 {
                     // process request count
                     var counter = await _processor.ProcessRequestAsync(identity, rule);
-
-                    // log blocked request
-                    LogBlockedRequest(httpContext, identity, counter, rule);
-
+                    
                     // break execution (TimeSpan.MaxValue used to represent infinity)
                     await ReturnQuotaExceededResponse(httpContext, rule, TimeSpan.MaxValue);
                     return;
@@ -148,12 +138,7 @@ namespace Lykke.RateLimit.Middleware
             httpContext.Response.StatusCode = _options.HttpStatusCode;
             return httpContext.Response.WriteAsync(message);
         }
-
-        private void LogBlockedRequest(HttpContext httpContext, ClientRequestIdentity identity, RateLimitCounter counter, RateLimitRule rule)
-        {
-            _logger.LogInformation($"Request {identity.HttpVerb}:{identity.Path} from IP {identity.ClientIp} has been blocked, quota {rule.Limit}/{rule.Period} exceeded by {counter.TotalRequests}. Blocked by rule {rule.Endpoint}, TraceIdentifier {httpContext.TraceIdentifier}.");
-        }
-
+        
         private Task SetRateLimitHeaders(object rateLimitHeaders)
         {
             var headers = (RateLimitHeaders)rateLimitHeaders;
